@@ -1,8 +1,22 @@
 <Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
-        <TargetFrameworks>net9.0;net8</TargetFrameworks>
+        <TargetFrameworks>net10.0;net9.0;net8</TargetFrameworks>
         <OutputType>Library</OutputType>
         <Nullable>enable</Nullable>
+    </PropertyGroup>
+
+    <!--
+      How the net10.0 (Jellyfin v12) target references the Jellyfin API.
+        local  (default) -> reference the locally-built v12 assemblies (see JellyfinV12LocalPath).
+        nuget            -> reference the Jellyfin.Controller 12.0.0 pre-release NuGet packages.
+      Flip with:  dotnet build -f net10.0 -p:JellyfinV12Source=nuget
+    -->
+    <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0'">
+        <JellyfinV12Source Condition="'$(JellyfinV12Source)' == ''">local</JellyfinV12Source>
+        <!-- Folder holding the built v12 net10.0 assemblies (relative to this csproj). -->
+        <JellyfinV12LocalPath Condition="'$(JellyfinV12LocalPath)' == ''">$(MSBuildProjectDirectory)/../../jellyfin-src/Jellyfin.Server/bin/Release/net10.0</JellyfinV12LocalPath>
+        <!-- v12 NuGet version used when JellyfinV12Source=nuget. -->
+        <JellyfinV12PackageVersion Condition="'$(JellyfinV12PackageVersion)' == ''">12.0.0-rc2</JellyfinV12PackageVersion>
     </PropertyGroup>
 
     <!-- Exclude all DLLs from referenced projects by default -->
@@ -18,6 +32,50 @@
     </ItemGroup>
     <ItemGroup Condition="'$(TargetFramework)' == 'net8'">
         <PackageReference Include="Jellyfin.Controller" Version="10.10.7" TargetFramework="net8" />
+    </ItemGroup>
+
+    <!-- ASP.NET Core (controllers, SignalR server types). Pulled transitively via the
+         Jellyfin.Controller NuGet package on net8/net9; must be explicit for the local
+         DLL references on net10.0. -->
+    <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
+        <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    </ItemGroup>
+
+    <!-- Jellyfin Core (v12 / net10.0) — locally-built assemblies. -->
+    <ItemGroup Condition="'$(TargetFramework)' == 'net10.0' and '$(JellyfinV12Source)' == 'local'">
+        <Reference Include="MediaBrowser.Controller">
+            <HintPath>$(JellyfinV12LocalPath)/MediaBrowser.Controller.dll</HintPath>
+            <Private>false</Private>
+        </Reference>
+        <Reference Include="MediaBrowser.Common">
+            <HintPath>$(JellyfinV12LocalPath)/MediaBrowser.Common.dll</HintPath>
+            <Private>false</Private>
+        </Reference>
+        <Reference Include="MediaBrowser.Model">
+            <HintPath>$(JellyfinV12LocalPath)/MediaBrowser.Model.dll</HintPath>
+            <Private>false</Private>
+        </Reference>
+        <Reference Include="Jellyfin.Data">
+            <HintPath>$(JellyfinV12LocalPath)/Jellyfin.Data.dll</HintPath>
+            <Private>false</Private>
+        </Reference>
+        <Reference Include="Jellyfin.Database.Implementations">
+            <HintPath>$(JellyfinV12LocalPath)/Jellyfin.Database.Implementations.dll</HintPath>
+            <Private>false</Private>
+        </Reference>
+        <Reference Include="Emby.Naming">
+            <HintPath>$(JellyfinV12LocalPath)/Emby.Naming.dll</HintPath>
+            <Private>false</Private>
+        </Reference>
+        <Reference Include="Jellyfin.Extensions">
+            <HintPath>$(JellyfinV12LocalPath)/Jellyfin.Extensions.dll</HintPath>
+            <Private>false</Private>
+        </Reference>
+    </ItemGroup>
+
+    <!-- Jellyfin Core (v12 / net10.0) — pre-release NuGet packages (release path). -->
+    <ItemGroup Condition="'$(TargetFramework)' == 'net10.0' and '$(JellyfinV12Source)' == 'nuget'">
+        <PackageReference Include="Jellyfin.Controller" Version="$(JellyfinV12PackageVersion)" TargetFramework="net10.0" />
     </ItemGroup>
 
     <ItemGroup Condition="'$(TargetFramework)' == 'net9.0'">
@@ -47,9 +105,36 @@
         <PackageReference Include="@(CommonPackageReference)" />
     </ItemGroup>
 
+    <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
+        <!-- EF Core for the user-data repository (JellyfinDbContext / IDbContextFactory).
+             Compile-only: the Jellyfin host provides these assemblies at runtime. -->
+        <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.9" ExcludeAssets="runtime" />
+        <!-- Shared dependencies with Jellyfin Core -->
+        <PackageReference Include="AsyncKeyedLock" Version="7.1.7" />
+        <PackageReference Include="DotNet.Glob" Version="3.1.3" />
+        <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.0" />
+        <!-- Own dependencies we need to output with the package. Note: unlike net9, the
+             .NET 10 runtime provides System.Net.ServerSentEvents in-box, so it is referenced
+             (for compile) but not shipped as a CommonPackageReference. -->
+        <CommonPackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.0" TargetFramework="net10.0" />
+        <CommonPackageReference Include="Microsoft.AspNetCore.SignalR.Client.Core" Version="10.0.0" TargetFramework="net10.0" />
+        <CommonPackageReference Include="Microsoft.AspNetCore.Http.Connections.Client" Version="10.0.0" TargetFramework="net10.0" />
+        <PackageReference Include="@(CommonPackageReference)" />
+        <PackageReference Include="System.Net.ServerSentEvents" Version="10.0.0" />
+    </ItemGroup>
+    <!-- v12 EF entities package, only when pulling the API from NuGet (local mode uses the built DLL). -->
+    <ItemGroup Condition="'$(TargetFramework)' == 'net10.0' and '$(JellyfinV12Source)' == 'nuget'">
+        <PackageReference Include="Jellyfin.Database.Implementations" Version="$(JellyfinV12PackageVersion)" TargetFramework="net10.0" />
+    </ItemGroup>
+
     <!-- Code analyzers -->
     <ItemGroup Condition="'$(TargetFramework)' == 'net9.0'">
         <PackageReference Include="Microsoft.CodeAnalysis.NetAnalyzers" Version="9.0.0" PrivateAssets="All" />
+        <PackageReference Include="SerilogAnalyzer" Version="0.15.0" PrivateAssets="All" />
+        <PackageReference Include="SmartAnalyzers.MultithreadingAnalyzer" Version="1.1.31" PrivateAssets="All" />
+    </ItemGroup>
+    <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
+        <PackageReference Include="Microsoft.CodeAnalysis.NetAnalyzers" Version="10.0.100" PrivateAssets="All" />
         <PackageReference Include="SerilogAnalyzer" Version="0.15.0" PrivateAssets="All" />
         <PackageReference Include="SmartAnalyzers.MultithreadingAnalyzer" Version="1.1.31" PrivateAssets="All" />
     </ItemGroup>

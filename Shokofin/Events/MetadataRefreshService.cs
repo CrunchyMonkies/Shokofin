@@ -87,10 +87,14 @@ public class MetadataRefreshService {
                 return updated;
 
             if (refreshFields.HasFlag(MetadataRefreshField.OwnedItems)) {
+                #if NET10_0_OR_GREATER
+                var extras = boxSet.GetExtras().OfType<Video>().ToArray();
+                #else
                 var extras = boxSet.ExtraIds
                     .Select(extraId => _libraryManager.GetItemById<Video>(extraId)!)
                     .Where(i => i is not null)
                     .ToArray();
+                #endif
                 foreach (var extra in extras)
                     updated = await RefreshVideo(extra, refreshFieldsMask, cancellationToken) || updated;
             }
@@ -117,10 +121,14 @@ public class MetadataRefreshService {
                 return updated;
 
             if (refreshFields.HasFlag(MetadataRefreshField.OwnedItems)) {
+                #if NET10_0_OR_GREATER
+                var extras = movie.GetExtras().OfType<Video>().ToArray();
+                #else
                 var extras = movie.ExtraIds
                     .Select(extraId => _libraryManager.GetItemById<Video>(extraId)!)
                     .Where(i => i is not null)
                     .ToArray();
+                #endif
                 foreach (var extra in extras)
                     updated = await RefreshVideo(extra, refreshFieldsMask, cancellationToken) || updated;
             }
@@ -166,10 +174,14 @@ public class MetadataRefreshService {
             updated = await RefreshBaseItem(series, metadata, metadataResult, refreshFields, _customSeriesProvider, cancellationToken) || updated;
 
             if (refreshFields.HasFlag(MetadataRefreshField.OwnedItems)) {
+                #if NET10_0_OR_GREATER
+                var extras = series.GetExtras().OfType<Video>().ToArray();
+                #else
                 var extras = series.ExtraIds
                     .Select(extraId => _libraryManager.GetItemById<Video>(extraId)!)
                     .Where(i => i is not null)
                     .ToArray();
+                #endif
                 foreach (var extra in extras)
                     updated = await RefreshVideo(extra, refreshFieldsMask, cancellationToken) || updated;
             }
@@ -206,10 +218,14 @@ public class MetadataRefreshService {
             updated = await RefreshBaseItem(season, metadata, metadataResult, refreshFields, _customSeasonProvider, cancellationToken) || updated;
 
             if (refreshFields.HasFlag(MetadataRefreshField.OwnedItems)) {
+                #if NET10_0_OR_GREATER
+                var extras = season.GetExtras().OfType<Video>().ToArray();
+                #else
                 var extras = season.ExtraIds
                     .Select(extraId => _libraryManager.GetItemById<Video>(extraId)!)
                     .Where(i => i is not null)
                     .ToArray();
+                #endif
                 foreach (var extra in extras)
                     updated = await RefreshVideo(extra, refreshFieldsMask, cancellationToken) || updated;
             }
@@ -250,10 +266,14 @@ public class MetadataRefreshService {
             }
 
             if (refreshFields.HasFlag(MetadataRefreshField.OwnedItems)) {
+                #if NET10_0_OR_GREATER
+                var extras = episode.GetExtras().OfType<Video>().ToArray();
+                #else
                 var extras = episode.ExtraIds
                     .Select(extraId => _libraryManager.GetItemById<Video>(extraId)!)
                     .Where(i => i is not null)
                     .ToArray();
+                #endif
                 foreach (var extra in extras)
                     updated = await RefreshVideo(extra, refreshFieldsMask, cancellationToken) || updated;
             }
