@@ -1,0 +1,21 @@
+[
+    {
+        "guid": "5216ccbf-d24a-4eb3-8a7e-7da4230b7052",
+        "name": "Shoko",
+        "overview": "Manage your anime from Jellyfin using metadata from Shoko",
+        "description": "A Jellyfin plugin to integrate [Jellyfin](https://jellyfin.org/docs/) with [Shoko Server](https://shokoanime.com/downloads/shoko-server/).\n## Read this before installing\n**This plugin requires that you have already set up and are using Shoko Server**, and that the files you intend to include in Jellyfin are **indexed** (and optionally managed) by Shoko Server. **Otherwise, the plugin won't be able to provide metadata for your files**, since there is no metadata to find for them.\n",
+        "owner": "ShokoAnime",
+        "category": "Anime",
+        "imageUrl": "https://raw.githubusercontent.com/ShokoAnime/Shokofin/metadata/banner.png",
+        "versions": [
+            {
+                "version": "6.0.5.0",
+                "changelog": "Only compatible with **12.0.z**.\n\nSee the [release notes](https://github.com/ShokoAnime/Shokofin/releases/tag/v6.0.5) for more info.",
+                "targetAbi": "12.0.0.0",
+                "sourceUrl": "https://github.com/CrunchyMonkies/Shokofin/releases/download/v6.0.5/shoko_6.0.5.0_for_12.0.zip",
+                "checksum": "251a04812e86d22734ccde4a1834d3ec",
+                "timestamp": "2026-07-09T14:31:32Z"
+            }
+        ]
+    }
+]
