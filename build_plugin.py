@@ -28,6 +28,13 @@ def extract_packages_to_output(csproj_path, framework):
     matches = [match.group(1) + ".dll" for match in pattern.finditer(content)]
     return list(set(matches))
 
+# Fallback ABI for frameworks whose Jellyfin.Controller version cannot be read as a plain
+# number from the csproj (e.g. the net10.0 / Jellyfin v12 target references a locally-built
+# assembly or a pre-release package like "12.0.0-rc2").
+FRAMEWORK_ABI = {
+    "net10.0": "12.0.0",
+}
+
 def extract_target_abi(csproj_path, framework):
     with open(csproj_path, "r") as file:
         content = file.read()
@@ -38,18 +45,37 @@ def extract_target_abi(csproj_path, framework):
         re.IGNORECASE,
     )
     match = pattern.search(content)
-    if not match:
-        raise Exception(
-            f"Jellyfin.Controller not found for framework '{framework}' in {os.path.basename(csproj_path)}"
-        )
-    return match.group(1)
+    version = match.group(1) if match else None
+
+    # Keep only a clean numeric version (strip pre-release suffixes and MSBuild $(props)),
+    # e.g. "12.0.0-rc2" -> "12.0.0". Fall back to the per-framework ABI map when the version
+    # isn't numeric (property placeholder) or has no PackageReference (local assembly ref).
+    numeric = re.match(r"\d+(?:\.\d+)*", version) if version else None
+    if numeric:
+        return numeric.group(0)
+    if framework in FRAMEWORK_ABI:
+        return FRAMEWORK_ABI[framework]
+    raise Exception(
+        f"Jellyfin.Controller not found for framework '{framework}' in {os.path.basename(csproj_path)}"
+    )
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--repo", required=True)
 parser.add_argument("--version", required=True)
 parser.add_argument("--tag", required=True)
 parser.add_argument("--prerelease", default=False)
+# Restrict the build to specific target framework(s) (comma-separated). When omitted, build
+# every framework EXCEPT net10.0, so the legacy stable/dev workflows keep producing the
+# 10.x artifacts and the net10.0 / Jellyfin v12 build is opt-in via the dedicated workflow.
+parser.add_argument("--framework", default=None)
 opts = parser.parse_args()
+
+if opts.framework:
+    selected_frameworks = [f.strip() for f in opts.framework.split(",") if f.strip()]
+else:
+    selected_frameworks = None
+# Frameworks skipped by default (only built when explicitly requested via --framework).
+DEFAULT_SKIP_FRAMEWORKS = {"net10.0"}
 
 project_file = "./Shokofin/Shokofin.csproj"
 version = opts.version
@@ -82,6 +108,11 @@ changelog = data["changelog"]
 # For every found framework, generate a zip file for the target framework and ABI.
 try:
     for framework in extract_target_framework(project_file):
+        if selected_frameworks is not None:
+            if framework not in selected_frameworks:
+                continue
+        elif framework in DEFAULT_SKIP_FRAMEWORKS:
+            continue
         target_abi = extract_target_abi(project_file, framework)
         target_abi_high = ".".join(target_abi.split(".")[:-1])
         target_abi_low = target_abi.split(".")[1]

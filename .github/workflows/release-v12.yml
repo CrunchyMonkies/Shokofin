@@ -1,0 +1,128 @@
+name: Build & Publish v12 Release
+
+# Builds the net10.0 / Jellyfin v12 plugin against the Jellyfin.Controller 12.0.0-rc2
+# pre-release packages (JellyfinV12Source=nuget) and publishes a jprm zip + manifest.
+# Runs on every version tag push. The legacy 10.x artifacts are handled by release.yml
+# (build_plugin.py skips net10.0 unless it is explicitly selected with --framework).
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+env:
+  # Build the net10.0 target from NuGet pre-release packages (no local jellyfin-src in CI).
+  # MSBuild reads these environment variables as global properties for restore + publish.
+  JellyfinV12Source: nuget
+  JellyfinV12PackageVersion: 12.0.0-rc2
+
+jobs:
+  current_info:
+    runs-on: ubuntu-latest
+
+    name: Current Information
+
+    outputs:
+      version: ${{ steps.release_info.outputs.version }}
+      tag: ${{ steps.release_info.outputs.tag }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: "${{ github.ref }}"
+          fetch-depth: 0 # Download the full git history for the repo
+
+      - name: Get Current Version
+        id: release_info
+        uses: revam/gh-action-get-tag-and-version@v1
+        with:
+          branch: false
+          prefix: "v"
+          prefixRegex: "[vV]?"
+          suffixRegex: "dev"
+          suffix: "dev"
+
+  build_plugin:
+    runs-on: ubuntu-latest
+
+    needs:
+      - current_info
+
+    name: Build v12 Release
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 0 # Download the full git history for the repo
+
+      - name: Fetch v12 Manifest from Metadata Branch
+        run: |
+          # Reuse the existing v12 manifest if present; otherwise seed from the repo stub
+          # (the first v12 release has no v12/manifest.json on the metadata branch yet).
+          if git checkout origin/metadata -- v12/manifest.json 2>/dev/null; then
+            git reset;
+            rm -f manifest.json;
+            mv v12/manifest.json manifest.json;
+            rmdir v12 2>/dev/null || true;
+            echo "Using existing v12 manifest from metadata branch.";
+          else
+            echo "No v12 manifest on metadata branch yet; seeding from stub manifest.json.";
+          fi
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore NuGet Packages
+        run: dotnet restore Shokofin/Shokofin.csproj
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install JPRM
+        run: python -m pip install jprm
+
+      - name: Run JPRM (net10.0 / v12)
+        run: >-
+          python build_plugin.py
+          --repo ${{ github.repository }}
+          --version=${{ needs.current_info.outputs.version }}
+          --tag=${{ needs.current_info.outputs.tag }}
+          --framework=net10.0
+
+      - name: Move Manifest to Metadata Branch
+        run: |
+          mkdir -p v12;
+          mv manifest.json v12/manifest.json;
+          git add ./v12/manifest.json;
+          git stash push --staged --message "Temp release details";
+          git reset --hard;
+          git checkout origin/metadata -B metadata;
+          git stash apply || git checkout --theirs v12/manifest.json;
+          git reset;
+
+      - name: Upload Release Asset
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: ./artifacts/shoko_*_for_12.0.zip
+          tag: ${{ github.ref }}
+          file_glob: true
+          overwrite: true
+
+      - name: Update v12 Manifest
+        uses: stefanzweifel/git-auto-commit-action@v4
+        with:
+          branch: metadata
+          commit_message: "misc: update v12 manifest"
+          file_pattern: v12/manifest.json
+          skip_fetch: true

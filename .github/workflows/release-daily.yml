@@ -96,9 +96,11 @@ jobs:
           rmdir dev;
 
       - name: Setup .Net
-        uses: actions/setup-dotnet@v1
+        uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 9.0.x
+          dotnet-version: |
+            9.0.x
+            10.0.x
 
       - name: Restore Nuget Packages
         run: dotnet restore Shokofin/Shokofin.csproj
