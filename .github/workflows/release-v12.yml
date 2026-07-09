@@ -99,17 +99,8 @@ jobs:
           --tag=${{ needs.current_info.outputs.tag }}
           --framework=net10.0
 
-      - name: Move Manifest to Metadata Branch
-        run: |
-          mkdir -p v12;
-          mv manifest.json v12/manifest.json;
-          git add ./v12/manifest.json;
-          git stash push --staged --message "Temp release details";
-          git reset --hard;
-          git checkout origin/metadata -B metadata;
-          git stash apply || git checkout --theirs v12/manifest.json;
-          git reset;
-
+      # Publish the plugin zip first, so the release is never blocked by the (secondary)
+      # manifest-branch bookkeeping below. Creates the release for the tag if absent.
       - name: Upload Release Asset
         uses: svenstaro/upload-release-action@v2
         with:
@@ -119,10 +110,25 @@ jobs:
           file_glob: true
           overwrite: true
 
-      - name: Update v12 Manifest
-        uses: stefanzweifel/git-auto-commit-action@v4
-        with:
-          branch: metadata
-          commit_message: "misc: update v12 manifest"
-          file_pattern: v12/manifest.json
-          skip_fetch: true
+      # Publish the jprm manifest to the metadata branch, creating it (orphan) if it does
+      # not exist yet. Non-fatal: a manifest hiccup must not fail an already-published release.
+      - name: Publish v12 Manifest to Metadata Branch
+        continue-on-error: true
+        run: |
+          set -e
+          cp manifest.json /tmp/v12-manifest.json
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if git ls-remote --exit-code --heads origin metadata >/dev/null 2>&1; then
+            git fetch origin metadata
+            git checkout -B metadata origin/metadata
+          else
+            echo "metadata branch missing; creating it as an orphan branch."
+            git checkout --orphan metadata
+            git rm -rf --cached . >/dev/null 2>&1 || true
+          fi
+          mkdir -p v12
+          cp /tmp/v12-manifest.json v12/manifest.json
+          git add v12/manifest.json
+          git commit -m "misc: update v12 manifest" || echo "no manifest changes to commit"
+          git push origin metadata
