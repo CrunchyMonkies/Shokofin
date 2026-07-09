@@ -416,7 +416,11 @@ public class MergeVersionsManager {
         var updated = false;
         var alternateVersions = new List<LinkedChild>();
         foreach (var (video, sortName) in orderedVideos.Skip(1)) {
+#if NET10_0_OR_GREATER
+            if (alternateVersions.Any(i => i.ItemId == video.Id)) {
+#else
             if (alternateVersions.Any(i => string.Equals(i.Path, video.Path, StringComparison.OrdinalIgnoreCase))) {
+#endif
                 _logger.LogTrace("Skipping already linked alternate version. (PrimaryVideo={PrimaryVideoId},Video={VideoId})", primaryVideo.Id, video.Id);
                 continue;
             }
@@ -424,7 +428,9 @@ public class MergeVersionsManager {
             // Conditionally save the changes back to the repository.
             _logger.LogTrace("Found a new linked alternate version. (PrimaryVideo={PrimaryVideoId},Video={VideoId})", primaryVideo.Id, video.Id);
             alternateVersions.Add(new() {
+#if !NET10_0_OR_GREATER
                 Path = video.Path,
+#endif
                 ItemId = video.Id,
             });
             updated = false;
@@ -460,7 +466,11 @@ public class MergeVersionsManager {
         // Order the alternate sources by path, to make sure we always have it
         // in the same order. The UI list is (partially) ordered by the forced
         // sort name, so this won't affect that.
+#if NET10_0_OR_GREATER
+        alternateVersions = [.. alternateVersions.OrderBy(i => i.ItemId)];
+#else
         alternateVersions = [.. alternateVersions.OrderBy(i => i.Path)];
+#endif
 
         // Conditionally save the changes back to the repository.
         _logger.LogTrace("Found primary video with {Count} linked alternate versions. (PrimaryVideo={PrimaryVideoId})", alternateVersions.Count, primaryVideo.Id);
@@ -640,7 +650,11 @@ public class MergeVersionsManager {
         => x is not null && y is not null && GetHashCode(x) == GetHashCode(y);
 
     public int GetHashCode([DisallowNull] LinkedChild obj)
+#if NET10_0_OR_GREATER
+        => HashCode.Combine(obj.ItemId, obj.Type);
+#else
         => HashCode.Combine(obj.Path, obj.LibraryItemId, obj.Type, obj.ItemId);
+#endif
   }
 
   #endregion Shared Methods

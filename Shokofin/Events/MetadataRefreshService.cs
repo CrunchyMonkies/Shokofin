@@ -137,8 +137,13 @@ public class MetadataRefreshService {
             updated = await RefreshBaseItem(movie, metadata, metadataResult, refreshFields, _customMovieProvider, cancellationToken) || updated;
             if (movie.LinkedAlternateVersions.Length > 0) {
                 foreach (var part in movie.LinkedAlternateVersions) {
+#if NET10_0_OR_GREATER
+                    if (part.ItemId is not Guid partItemId || _libraryManager.GetItemById(partItemId) is not Video video)
+                        continue;
+#else
                     if (_libraryManager.FindByPath(part.Path, isFolder: false) is not Video video)
                         continue;
+#endif
 
                     updated = await RefreshVideo(video, refreshFieldsMask, cancellationToken) || updated;
                 }
@@ -280,8 +285,13 @@ public class MetadataRefreshService {
 
             if (episode.LinkedAlternateVersions.Length > 0) {
                 foreach (var part in episode.LinkedAlternateVersions) {
+#if NET10_0_OR_GREATER
+                    if (part.ItemId is not Guid partItemId || _libraryManager.GetItemById(partItemId) is not Video video)
+                        continue;
+#else
                     if (_libraryManager.FindByPath(part.Path, isFolder: false) is not Video video)
                         continue;
+#endif
 
                     updated = await RefreshVideo(video, refreshFieldsMask, cancellationToken) || updated;
                 }
